@@ -1,0 +1,214 @@
+/* OmniExtract — Universal Web Media & Video Harvester */
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+:root {
+  --bg-primary: #070B12;
+  --bg-secondary: #0D1522;
+  --bg-card: #111A29;
+  --border-color: #1A283B;
+  --border-glow: rgba(14, 165, 233, 0.35);
+  --accent-blue: #0EA5E9;
+  --accent-cyan: #06B6D4;
+  --accent-emerald: #10B981;
+  --accent-purple: #8B5CF6;
+  --accent-amber: #F59E0B;
+  --text-main: #F8FAFC;
+  --text-muted: #94A3B8;
+  --text-dim: #64748B;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  background-color: var(--bg-primary);
+  color: var(--text-main);
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+code, pre, .font-mono {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Subtle Tactical Blueprint Grid Background */
+.bg-tactical-grid {
+  background-size: 36px 36px;
+  background-image: 
+    linear-gradient(to right, rgba(26, 40, 59, 0.4) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(26, 40, 59, 0.4) 1px, transparent 1px);
+}
+
+/* Glowing Ambient Radial Lights */
+.radial-glow-top {
+  position: absolute;
+  top: -150px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 900px;
+  height: 450px;
+  background: radial-gradient(ellipse at center, rgba(14, 165, 233, 0.15) 0%, rgba(99, 102, 241, 0.08) 40%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+::-webkit-scrollbar-track {
+  background: #090E17;
+}
+::-webkit-scrollbar-thumb {
+  background: #1C2D44;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #0EA5E9;
+}
+
+/* Animated Scanner Laser Beam */
+@keyframes scanline {
+  0% {
+    top: 0%;
+    opacity: 0.8;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    top: 100%;
+    opacity: 0.2;
+  }
+}
+
+.scanner-laser {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent 0%, #0EA5E9 50%, transparent 100%);
+  box-shadow: 0 0 15px 3px rgba(14, 165, 233, 0.7);
+  animation: scanline 2.2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* Pulsing Radar Ring */
+@keyframes radarPulse {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0.3;
+  }
+  100% {
+    transform: scale(0.95);
+    opacity: 0.8;
+  }
+}
+
+.radar-pulse {
+  animation: radarPulse 3s infinite ease-in-out;
+}
+
+/* Card Glow Effect */
+.media-card {
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  background: rgba(13, 21, 34, 0.85);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border-color);
+}
+
+.media-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--accent-blue);
+  box-shadow: 0 12px 30px -8px rgba(14, 165, 233, 0.22), 0 0 0 1px rgba(14, 165, 233, 0.3);
+}
+
+.media-card.is-selected {
+  border-color: #0EA5E9 !important;
+  background: rgba(14, 165, 233, 0.08) !important;
+  box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.5), 0 8px 24px -4px rgba(14, 165, 233, 0.3) !important;
+}
+
+/* Transparent Checkerboard for PNGs/SVGs */
+.checkerboard-bg {
+  background-color: #0c131d;
+  background-image: 
+    linear-gradient(45deg, #131c2a 25%, transparent 25%), 
+    linear-gradient(-45deg, #131c2a 25%, transparent 25%), 
+    linear-gradient(45deg, transparent 75%, #131c2a 75%), 
+    linear-gradient(-45deg, transparent 75%, #131c2a 75%);
+  background-size: 16px 16px;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
+}
+
+/* Draggable Bookmarklet Badge */
+.bookmarklet-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 9999px;
+  font-weight: 700;
+  font-size: 12px;
+  color: #fff;
+  background: linear-gradient(135deg, #0EA5E9, #6366F1);
+  box-shadow: 0 4px 14px rgba(14, 165, 233, 0.35);
+  cursor: grab;
+  user-select: none;
+  transition: all 0.2s ease;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.bookmarklet-btn:hover {
+  transform: scale(1.04);
+  box-shadow: 0 6px 20px rgba(14, 165, 233, 0.5);
+}
+
+/* Modal Animations */
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.modal-content-animated {
+  animation: modalFadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Smooth Image Transitions */
+.smooth-img {
+  opacity: 0;
+  transition: opacity 0.3s ease-in-out;
+}
+
+.smooth-img.loaded {
+  opacity: 1;
+}
+
+/* Truncate multi-line helper */
+.line-clamp-1 {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}

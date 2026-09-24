@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OmniExtract — Universal Web Media & Video Harvester</title>
+  <meta name="description" content="Extract, preview, and batch-download high-resolution photos, 4K/1080p videos, audio, and SVG vectors from any website at lightning speed." />
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              bg: '#070B12',
+              surface: '#0D1522',
+              card: '#111A29',
+              border: '#1A283B',
+              primary: '#0EA5E9',
+              primaryHover: '#0284C7',
+              accent: '#6366F1'
+            }
+          },
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace']
+          }
+        }
+      }
+    };
+  </script>
+
+  <!-- Bundled Local Libraries with CDN Fallbacks -->
+  <!-- Lucide Icons -->
+  <script src="vendor/lucide/lucide.min.js" onerror="this.onerror=null; this.src='https://unpkg.com/lucide@latest';"></script>
+  <!-- JSZip -->
+  <script src="vendor/jszip/jszip.min.js" onerror="this.onerror=null; this.src='https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js';"></script>
+  <!-- FileSaver -->
+  <script src="vendor/filesaver/FileSaver.min.js" onerror="this.onerror=null; this.src='https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js';"></script>
+
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="bg-[#070B12] text-[#F8FAFC] min-h-screen flex flex-col bg-tactical-grid relative selection:bg-sky-500 selection:text-white">
+
+  <!-- Ambient Light Glow -->
+  <div class="radial-glow-top"></div>
+
+  <!-- Top Navigation Bar -->
+  <header class="border-b border-[#1A283B] bg-[#0D1522]/90 backdrop-blur-xl sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      
+      <!-- Brand Logo -->
+      <div class="flex items-center gap-3">
+        <a href="./" class="w-10 h-10 rounded-xl bg-gradient-to-br from-sky-500 to-indigo-600 p-0.5 shadow-lg shadow-sky-500/25 flex items-center justify-center">
+          <div class="w-full h-full bg-[#070B12] rounded-[10px] flex items-center justify-center text-sky-400">
+            <i data-lucide="sparkles" class="w-5 h-5"></i>
+          </div>
+        </a>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="font-mono font-extrabold tracking-wider text-base sm:text-lg text-white">OMNIEXTRACT</span>
+            <span class="text-[10px] font-mono text-sky-400 px-2 py-0.5 rounded-full bg-sky-500/10 border border-sky-500/30 font-bold">
+              v2.0 PRO
+            </span>
+          </div>
+          <p class="text-[11px] text-slate-400 hidden sm:block">Universal High-Speed Web Media & Video Harvester</p>
+        </div>
+      </div>
+
+      <!-- Quick Metrics Telemetry -->
+      <div class="hidden md:flex items-center gap-4 text-xs font-mono text-slate-400">
+        <div class="flex items-center gap-1.5 bg-[#070B12] px-3 py-1.5 rounded-lg border border-[#1A283B]">
+          <span class="text-slate-500">MEDIA HARVESTED:</span>
+          <strong id="hdr-stat-total" class="text-sky-400 font-bold">0</strong>
+        </div>
+        <div class="flex items-center gap-1.5 bg-[#070B12] px-3 py-1.5 rounded-lg border border-[#1A283B]">
+          <span class="text-slate-500">VIDEOS:</span>
+          <strong id="hdr-stat-videos" class="text-emerald-400 font-bold">0</strong>
+        </div>
+        <div class="flex items-center gap-1.5 bg-[#070B12] px-3 py-1.5 rounded-lg border border-[#1A283B]">
+          <span class="text-slate-500">LATENCY:</span>
+          <strong id="hdr-stat-time" class="text-purple-400 font-bold">0ms</strong>
+        </div>
+      </div>
+
+      <!-- Header Actions -->
+      <div class="flex items-center gap-2.5">
+        <!-- Bookmarklet Modal Button -->
+        <button 
+          type="button" 
+          onclick="openBookmarkletModal()"
+          class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-bold text-sky-300 bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/30 transition-all"
+        >
+          <i data-lucide="bookmark" class="w-3.5 h-3.5"></i>
+          <span>1-CLICK BOOKMARKLET</span>
+        </button>
+
+        <!-- GitHub Repository Link -->
+        <a 
+          href="https://github.com/Shakyavinit/omniextract" 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          class="p-2 rounded-lg bg-[#111A29] hover:bg-[#1A283B] border border-[#1A283B] text-slate-300 hover:text-white transition flex items-center gap-1.5 text-xs font-mono"
+          title="View on GitHub"
+        >
+          <i data-lucide="github" class="w-4 h-4"></i>
+          <span class="hidden lg:inline font-bold">GitHub</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col gap-6 relative z-10">
+
+    <!-- Hero / Control Center Card -->
+    <section class="bg-[#0D1522] border border-[#1A283B] rounded-2xl p-5 sm:p-6 shadow-2xl relative overflow-hidden">
+      <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-sky-500 via-indigo-500 to-purple-600"></div>
+
+      <!-- Mode Selector Tabs -->
+      <div class="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-[#1A283B]/80 mb-5">
+        <div class="flex items-center gap-1 p-1 rounded-xl bg-[#070B12] border border-[#1A283B]">
+          <button 
+            type="button" 
+            id="tab-url" 
+            onclick="switchInputMode('url')"
+            class="px-3 py-1.5 rounded-lg text-xs font-mono font-bold bg-sky-500/20 text-sky-300 border border-sky-500/50 transition flex items-center gap-1.5"
+          >
+            <i data-lucide="globe" class="w-3.5 h-3.5"></i>
+            <span>LIVE URL SCAN</span>
+          </button>
+          <button 
+            type="button" 
+            id="tab-raw-html" 
+            onclick="switchInputMode('raw-html')"
+            class="px-3 py-1.5 rounded-lg text-xs font-mono font-bold text-slate-400 border border-transparent hover:text-white transition flex items-center gap-1.5"
+          >
+            <i data-lucide="code" class="w-3.5 h-3.5"></i>
+            <span>RAW HTML / SOURCE PASTE</span>
+          </button>
+          <button 
+            type="button" 
+            id="tab-file-drop" 
+            onclick="switchInputMode('file-drop')"
+            class="px-3 py-1.5 rounded-lg text-xs font-mono font-bold text-slate-400 border border-transparent hover:text-white transition flex items-center gap-1.5"
+          >
+            <i data-lucide="file-up" class="w-3.5 h-3.5"></i>
+            <span>FILE DROP (.HTML)</span>
+          </button>
+        </div>
+
+        <!-- Proxy Status Indicator -->
+        <div id="proxy-status-indicator" class="flex items-center gap-2 text-xs font-mono text-slate-400 bg-[#070B12] px-3 py-1.5 rounded-xl border border-[#1A283B]">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span class="text-slate-300">Proxy Engine: <strong class="text-emerald-400">READY (MULTI-PROXY CASCADE)</strong></span>
+        </div>
+      </div>
+
+      <!-- Pane 1: Live URL Input Form -->
+      <div id="pane-url" class="space-y-4">
+        <form id="url-form" class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          <div class="relative flex-1">
+            <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+              <i data-lucide="link-2" class="w-5 h-5 text-sky-400"></i>
+            </div>
+            <input 
+              type="text" 
+              id="target-url" 
+              placeholder="Paste any website URL (e.g. https://unsplash.com, https://en.wikipedia.org, blog, shop...)" 
+              class="w-full pl-11 pr-4 py-3 rounded-xl bg-[#070B12] border border-[#1A283B] text-white placeholder-slate-500 font-mono text-xs sm:text-sm focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition-all"
+              required
+            />
+          </div>
+
+          <button 
+            type="submit" 
+            id="scan-btn"
+            class="px-6 py-3 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-mono text-xs sm:text-sm font-bold shadow-lg shadow-sky-500/25 transition-all flex items-center justify-center gap-2 active:scale-95 shrink-0"
+          >
+            <i data-lucide="zap" class="w-4 h-4 fill-current"></i>
+            <span id="scan-btn-label">EXTRACT MEDIA</span>
+          </button>
+        </form>
+
+        <!-- Quick Preset Test Sites -->
+        <div class="flex flex-wrap items-center gap-2 pt-1 text-xs font-mono">
+          <span class="text-slate-500">Quick Test Drive:</span>
+          <button type="button" onclick="scanPreset('https://apod.nasa.gov/apod/')" class="px-2.5 py-1 rounded-lg bg-[#070B12] border border-[#1A283B] hover:border-sky-500/50 text-slate-300 hover:text-white transition">
+            🌌 NASA APOD
+          </button>
+          <button type="button" onclick="scanPreset('https://en.wikipedia.org/wiki/Aurora')" class="px-2.5 py-1 rounded-lg bg-[#070B12] border border-[#1A283B] hover:border-sky-500/50 text-slate-300 hover:text-white transition">
+            📖 Wikipedia Aurora
+          </button>
+          <button type="button" onclick="scanPreset('https://unsplash.com')" class="px-2.5 py-1 rounded-lg bg-[#070B12] border border-[#1A283B] hover:border-sky-500/50 text-slate-300 hover:text-white transition">
+            📸 Unsplash
+          </button>
+          <button type="button" onclick="scanPreset('https://github.com')" class="px-2.5 py-1 rounded-lg bg-[#070B12] border border-[#1A283B] hover:border-sky-500/50 text-slate-300 hover:text-white transition">
+            🐙 GitHub
+          </button>
+          <button type="button" onclick="scanPreset('https://www.bbc.com/news')" class="px-2.5 py-1 rounded-lg bg-[#070B12] border border-[#1A283B] hover:border-sky-500/50 text-slate-300 hover:text-white transition">
+            📰 BBC News
+          </button>
+        </div>
+      </div>
+
+      <!-- Pane 2: Raw HTML Paste -->
+      <div id="pane-raw-html" class="hidden space-y-3">
+        <p class="text-xs text-slate-400 font-mono">
+          Paste full HTML source code (press <kbd class="px-1.5 py-0.5 rounded bg-slate-800 text-sky-400">Ctrl+U</kbd> or <kbd class="px-1.5 py-0.5 rounded bg-slate-800 text-sky-400">F12 Elements</kbd> on any website, copy and paste here to bypass all anti-bot blocks):
+        </p>
+        <div class="flex flex-col sm:flex-row gap-3">
+          <input 
+            type="text" 
+            id="raw-html-base-url" 
+            placeholder="Target Website URL (e.g. https://instagram.com/user) to resolve relative paths" 
+            class="flex-1 px-4 py-2 rounded-xl bg-[#070B12] border border-[#1A283B] text-white placeholder-slate-500 font-mono text-xs focus:outline-none focus:border-sky-500"
+          />
+        </div>
+        <textarea 
+          id="raw-html-input" 
+          rows="5" 
+          placeholder="Paste <html> ... </html> source code here..." 
+          class="w-full p-4 rounded-xl bg-[#070B12] border border-[#1A283B] text-slate-200 placeholder-slate-600 font-mono text-xs focus:outline-none focus:border-sky-500 custom-scrollbar"
+        ></textarea>
+        <button 
+          type="button" 
+          onclick="scanRawHtmlInput()" 
+          class="px-5 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-white font-mono text-xs font-bold transition shadow-lg shadow-sky-500/20 flex items-center gap-2"
+        >
+          <i data-lucide="play" class="w-4 h-4 fill-current"></i>
+          <span>PARSE PASTED HTML</span>
+        </button>
+      </div>
+
+      <!-- Pane 3: File Drop Zone -->
+      <div id="pane-file-drop" class="hidden">
+        <div 
+          id="html-drop-zone"
+          class="border-2 border-dashed border-[#1A283B] rounded-xl p-8 text-center bg-[#070B12]/60 hover:bg-[#070B12] transition-colors cursor-pointer flex flex-col items-center justify-center gap-3"
+          onclick="document.getElementById('file-upload-input').click()"
+        >
+          <input type="file" id="file-upload-input" accept=".html,.htm,.txt" class="hidden" onchange="handleFileDrop(this.files[0])" />
+          <div class="w-12 h-12 rounded-xl bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400">
+            <i data-lucide="upload-cloud" class="w-6 h-6"></i>
+          </div>
+          <div>
+            <h4 class="text-sm font-mono font-bold text-white">Drag & drop your saved .html or .htm page file here</h4>
+            <p class="text-xs text-slate-400 font-mono mt-1">Or click to browse from your computer</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Scanning Progress Banner -->
+      <div id="scanning-status-banner" class="hidden mt-4 p-3.5 rounded-xl bg-sky-950/60 border border-sky-500/40 flex items-center justify-between text-xs font-mono relative overflow-hidden">
+        <div class="scanner-laser"></div>
+        <div class="flex items-center gap-3">
+          <div class="w-5 h-5 rounded-full border-2 border-sky-400 border-t-transparent animate-spin"></div>
+          <span id="scanning-status-msg" class="text-sky-300 font-bold">Harvesting media assets...</span>
+        </div>
+        <span class="text-slate-400 text-[11px]">PARALLEL PROXY INGESTION</span>
+      </div>
+
+      <!-- Scan Error Alert Box -->
+      <div id="scan-error-box" class="hidden mt-4 p-3.5 rounded-xl bg-red-950/80 border border-red-500/50 flex items-start gap-3 text-xs font-mono text-red-200">
+        <i data-lucide="alert-triangle" class="w-5 h-5 text-red-400 shrink-0 mt-0.5"></i>
+        <div class="flex-1">
+          <strong class="text-red-300 block mb-0.5">Scraper Notice:</strong>
+          <span id="scan-error-msg">Failed to connect.</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Recent Scans History Strip -->
+    <div class="flex items-center gap-2 overflow-x-auto py-1 custom-scrollbar">
+      <span class="text-[11px] font-mono text-slate-500 shrink-0 flex items-center gap-1">
+        <i data-lucide="history" class="w-3.5 h-3.5"></i>
+        <span>Recents:</span>
+      </span>
+      <div id="recent-scans-list" class="flex items-center gap-2"></div>
+    </div>
+
+    <!-- Results Section (Hidden until scanned) -->
+    <section id="results-header-section" class="hidden flex flex-col gap-4">
+      
+      <!-- Target Site Header Strip -->
+      <div class="bg-[#0D1522] border border-[#1A283B] rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-lg">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-lg bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400">
+            <i data-lucide="check-circle-2" class="w-5 h-5 text-emerald-400"></i>
+          </div>
+          <div>
+            <h3 id="target-title-display" class="text-sm font-mono font-bold text-white truncate max-w-lg">
+              Extracted Target
+            </h3>
+            <div class="flex items-center gap-2 text-xs font-mono text-slate-400">
+              <span id="target-host-display" class="text-sky-400">host</span>
+              <span>•</span>
+              <span>All assets indexed & ready for download</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Master Batch ZIP Download Button -->
+        <div class="flex items-center gap-2 w-full sm:w-auto">
+          <button 
+            type="button" 
+            onclick="downloadSelectedZip()"
+            class="flex-1 sm:flex-none px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-mono text-xs font-bold transition shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 active:scale-95 border border-emerald-400/40"
+          >
+            <i data-lucide="archive" class="w-4 h-4"></i>
+            <span>DOWNLOAD SELECTED (.ZIP)</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Controls, Filters, Search & Bulk Actions Bar -->
+      <div class="bg-[#0D1522] border border-[#1A283B] rounded-xl p-4 flex flex-col gap-4 shadow-lg">
+        
+        <!-- Top Row: Type Tabs & Quality Filter -->
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          
+          <!-- Category Filter Tabs -->
+          <div class="flex flex-wrap items-center gap-1.5">
+            <button 
+              type="button" 
+              id="tab-btn-all" 
+              onclick="switchTab('all')" 
+              class="px-3 py-1.5 rounded-lg bg-sky-500 text-white text-xs font-mono font-bold shadow-md shadow-sky-500/30 transition flex items-center gap-1.5"
+            >
+              <span>ALL MEDIA</span>
+              <span id="count-all" class="px-1.5 py-0.2 rounded-full bg-white/20 text-[10px]">0</span>
+            </button>
+            <button 
+              type="button" 
+              id="tab-btn-image" 
+              onclick="switchTab('image')" 
+              class="px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white text-xs font-mono font-medium transition flex items-center gap-1.5"
+            >
+              <span>PHOTOS & IMAGES</span>
+              <span id="count-images" class="px-1.5 py-0.2 rounded-full bg-slate-700 text-[10px]">0</span>
+            </button>
+            <button 
+              type="button" 
+              id="tab-btn-video" 
+              onclick="switchTab('video')" 
+              class="px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white text-xs font-mono font-medium transition flex items-center gap-1.5"
+            >
+              <span>VIDEOS & REELS</span>
+              <span id="count-videos" class="px-1.5 py-0.2 rounded-full bg-slate-700 text-[10px]">0</span>
+            </button>
+            <button 
+              type="button" 
+              id="tab-btn-audio" 
+              onclick="switchTab('audio')" 
+              class="px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white text-xs font-mono font-medium transition flex items-center gap-1.5"
+            >
+              <span>AUDIO</span>
+              <span id="count-audio" class="px-1.5 py-0.2 rounded-full bg-slate-700 text-[10px]">0</span>
+            </button>
+            <button 
+              type="button" 
+              id="tab-btn-svg" 
+              onclick="switchTab('svg')" 
+              class="px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white text-xs font-mono font-medium transition flex items-center gap-1.5"
+            >
+              <span>VECTORS (SVG)</span>
+              <span id="count-svg" class="px-1.5 py-0.2 rounded-full bg-slate-700 text-[10px]">0</span>
+            </button>
+          </div>
+
+          <!-- Quality & Sort Dropdowns -->
+          <div class="flex items-center gap-2">
+            <select 
+              id="quality-filter-select" 
+              onchange="applyQualityFilter(this.value)" 
+              class="px-3 py-1.5 rounded-lg bg-[#070B12] border border-[#1A283B] text-slate-300 font-mono text-xs focus:outline-none focus:border-sky-500"
+            >
+              <option value="all">Resolution: All</option>
+              <option value="4k">4K UHD (≥ 2160p)</option>
+              <option value="1080p">1080p FHD (≥ 1080p)</option>
+              <option value="720p">720p HD (≥ 720p)</option>
+              <option value="sd">SD & Thumbnails</option>
+            </select>
+
+            <select 
+              id="sort-select" 
+              onchange="applySort(this.value)" 
+              class="px-3 py-1.5 rounded-lg bg-[#070B12] border border-[#1A283B] text-slate-300 font-mono text-xs focus:outline-none focus:border-sky-500"
+            >
+              <option value="default">Sort: Default</option>
+              <option value="res-desc">Sort: Highest Res</option>
+              <option value="name-asc">Sort: Name (A-Z)</option>
+              <option value="type">Sort: Media Type</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Bottom Row: Search, Selection Helpers & Export -->
+        <div class="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-[#1A283B]/60">
+          
+          <!-- Live Search Bar -->
+          <div class="relative w-full sm:w-72">
+            <i data-lucide="search" class="w-4 h-4 text-slate-500 absolute left-3 top-2.5"></i>
+            <input 
+              type="text" 
+              id="search-input" 
+              placeholder="Search filename, URL, format..." 
+              class="w-full pl-9 pr-3 py-1.5 rounded-lg bg-[#070B12] border border-[#1A283B] text-white placeholder-slate-500 font-mono text-xs focus:outline-none focus:border-sky-500"
+            />
+          </div>
+
+          <!-- Selection Controls -->
+          <div class="flex flex-wrap items-center gap-2 text-xs font-mono">
+            <button 
+              type="button" 
+              onclick="selectAllItems()" 
+              class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition"
+            >
+              Select All
+            </button>
+            <button 
+              type="button" 
+              onclick="selectHdOnly()" 
+              class="px-2.5 py-1.5 rounded-lg bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 border border-sky-500/40 transition"
+            >
+              Select HD Only
+            </button>
+            <button 
+              type="button" 
+              onclick="invertSelection()" 
+              class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition"
+            >
+              Invert
+            </button>
+
+            <span class="text-slate-500 px-1">|</span>
+
+            <!-- Export Dropdown -->
+            <button 
+              type="button" 
+              onclick="exportUrlsAsText()" 
+              class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition flex items-center gap-1"
+              title="Export plain text URL list"
+            >
+              <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
+              <span>TXT</span>
+            </button>
+            <button 
+              type="button" 
+              onclick="exportUrlsAsCsv()" 
+              class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition flex items-center gap-1"
+              title="Export CSV spreadsheet"
+            >
+              <i data-lucide="table" class="w-3.5 h-3.5"></i>
+              <span>CSV</span>
+            </button>
+            <button 
+              type="button" 
+              onclick="exportUrlsAsJson()" 
+              class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition flex items-center gap-1"
+              title="Export complete JSON"
+            >
+              <i data-lucide="braces" class="w-3.5 h-3.5"></i>
+              <span>JSON</span>
+            </button>
+
+            <!-- Selected Counter Badge -->
+            <span id="selected-count-badge" class="px-2.5 py-1 rounded-full bg-sky-500/10 border border-sky-500/30 text-sky-400 font-bold ml-1">
+              0 / 0
+            </span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Empty State / Welcome Guide (Visible before scan) -->
+    <div id="empty-state" class="border border-[#1A283B] rounded-2xl p-8 sm:p-12 text-center bg-[#0D1522]/50 backdrop-blur-md flex flex-col items-center justify-center gap-4">
+      <div class="w-16 h-16 rounded-2xl bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400 mb-1">
+        <i data-lucide="download-cloud" class="w-8 h-8"></i>
+      </div>
+      <h3 class="text-lg sm:text-xl font-mono font-bold text-white">Enter Any Website URL Above to Harvest Media</h3>
+      <p class="text-xs sm:text-sm text-slate-400 max-w-xl leading-relaxed">
+        OmniExtract automatically connects through multiple high-speed CORS proxies, discovers all hidden and dynamic photos, 4K/1080p videos, audio clips, and vector graphics, and lets you download them all in 1-click as an organized .ZIP file.
+      </p>
+
+      <!-- Feature Grid Highlights -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-3xl w-full mt-4 text-left font-mono">
+        <div class="p-4 rounded-xl bg-[#070B12] border border-[#1A283B]">
+          <div class="text-sky-400 font-bold text-xs flex items-center gap-1.5 mb-1">
+            <i data-lucide="layers" class="w-4 h-4"></i>
+            <span>MULTI-PROXY RACING</span>
+          </div>
+          <p class="text-[11px] text-slate-400">Races 4 CORS proxy engines simultaneously to bypass browser restrictions in under 1 second.</p>
+        </div>
+
+        <div class="p-4 rounded-xl bg-[#070B12] border border-[#1A283B]">
+          <div class="text-emerald-400 font-bold text-xs flex items-center gap-1.5 mb-1">
+            <i data-lucide="video" class="w-4 h-4"></i>
+            <span>VIDEOS & EMBEDS</span>
+          </div>
+          <p class="text-[11px] text-slate-400">Grabs MP4, WebM, HLS m3u8 streams, and extracts 1080p frames from YouTube/Vimeo embeds.</p>
+        </div>
+
+        <div class="p-4 rounded-xl bg-[#070B12] border border-[#1A283B]">
+          <div class="text-purple-400 font-bold text-xs flex items-center gap-1.5 mb-1">
+            <i data-lucide="archive" class="w-4 h-4"></i>
+            <span>ORGANIZED ZIP PACKER</span>
+          </div>
+          <p class="text-[11px] text-slate-400">Auto-packages media into images/, videos/, audio/, and vectors/ with manifest.json metadata.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Media Results Grid Container -->
+    <div id="media-results-container" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"></div>
+
+  </main>
+
+  <!-- Lightbox Modal (Full-Screen Image / Video Viewer) -->
+  <div id="lightbox-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 hidden">
+    <div class="relative w-full max-w-6xl max-h-[92vh] flex flex-col justify-between modal-content-animated">
+      
+      <!-- Top Modal Bar -->
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800 text-xs font-mono text-slate-300">
+        <div>
+          <h4 id="lightbox-title" class="text-sm font-bold text-white truncate max-w-xl">Asset Preview</h4>
+          <span id="lightbox-meta" class="text-slate-400 text-[11px]">Resolution & Details</span>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <!-- Zoom Controls (for images) -->
+          <button onclick="zoomLightbox(0.25)" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300" title="Zoom in">
+            <i data-lucide="zoom-in" class="w-4 h-4"></i>
+          </button>
+          <button onclick="zoomLightbox(-0.25)" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300" title="Zoom out">
+            <i data-lucide="zoom-out" class="w-4 h-4"></i>
+          </button>
+          <button onclick="rotateLightbox()" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300" title="Rotate 90 degrees">
+            <i data-lucide="rotate-cw" class="w-4 h-4"></i>
+          </button>
+          <button onclick="resetLightboxTransform()" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300" title="Reset view">
+            <i data-lucide="maximize" class="w-4 h-4"></i>
+          </button>
+
+          <!-- Download Active Item -->
+          <button onclick="downloadCurrentLightboxItem()" class="px-3 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-400 text-white font-bold transition flex items-center gap-1.5">
+            <i data-lucide="download" class="w-4 h-4"></i>
+            <span>SAVE</span>
+          </button>
+
+          <!-- Close Modal -->
+          <button onclick="closeLightbox()" class="p-2 rounded-lg bg-slate-800 hover:bg-red-600 text-slate-300 hover:text-white transition">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Center Media Viewport -->
+      <div id="lightbox-media-container" class="my-4 flex-1 flex items-center justify-center overflow-hidden min-h-[400px]">
+        <!-- Dynamic Image / Video / Audio goes here -->
+      </div>
+
+      <!-- Bottom Navigation Bar -->
+      <div class="flex items-center justify-between pt-3 border-t border-slate-800 text-xs font-mono">
+        <button onclick="prevLightboxItem()" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-sky-600 text-slate-200 transition flex items-center gap-1.5 font-bold">
+          <i data-lucide="chevron-left" class="w-4 h-4"></i>
+          <span>Previous (Left Arrow)</span>
+        </button>
+        <span class="text-slate-500 text-[11px]">Press ESC to close • Arrow keys to navigate</span>
+        <button onclick="nextLightboxItem()" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-sky-600 text-slate-200 transition flex items-center gap-1.5 font-bold">
+          <span>Next (Right Arrow)</span>
+          <i data-lucide="chevron-right" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ZIP Download Progress Modal -->
+  <div id="zip-progress-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 hidden">
+    <div class="bg-[#0D1522] border border-[#1A283B] rounded-2xl p-6 max-w-md w-full shadow-2xl text-center space-y-4 modal-content-animated">
+      <div class="w-14 h-14 mx-auto rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+        <i data-lucide="archive" class="w-7 h-7 animate-pulse"></i>
+      </div>
+      <h3 class="text-base font-mono font-bold text-white">Compressing Media Archive</h3>
+      <p id="zip-progress-status" class="text-xs font-mono text-slate-400">Preparing downloads and organizing folders...</p>
+      
+      <div class="w-full bg-[#070B12] h-3 rounded-full overflow-hidden border border-[#1A283B]">
+        <div id="zip-progress-bar" class="bg-gradient-to-r from-sky-500 to-emerald-400 h-full w-0 transition-all duration-150"></div>
+      </div>
+
+      <div class="text-[11px] font-mono text-slate-400 flex items-center justify-between">
+        <span id="zip-progress-count">0 / 0 items</span>
+        <span id="zip-progress-percent" class="text-emerald-400 font-bold">0%</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bookmarklet Instruction Modal -->
+  <div id="bookmarklet-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 hidden">
+    <div class="bg-[#0D1522] border border-[#1A283B] rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-4 modal-content-animated">
+      <div class="flex items-center justify-between border-b border-[#1A283B] pb-3">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-lg bg-sky-500/20 text-sky-400 flex items-center justify-center">
+            <i data-lucide="bookmark" class="w-4 h-4"></i>
+          </div>
+          <h3 class="text-sm font-mono font-bold text-white">1-Click Browser Bookmarklet</h3>
+        </div>
+        <button onclick="closeBookmarkletModal()" class="p-1 text-slate-400 hover:text-white rounded">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <p class="text-xs text-slate-300 font-mono leading-relaxed">
+        Drag this button to your browser bookmarks bar. Whenever you are on <strong class="text-white">ANY</strong> website (Instagram, Twitter, Pinterest, YouTube, TikTok, Netflix, Reddit, Behance, etc.), just click the bookmark to instantly extract all media with <strong>0 CORS limitations</strong>!
+      </p>
+
+      <!-- Draggable Bookmarklet Button -->
+      <div class="p-6 rounded-xl bg-[#070B12] border-2 border-dashed border-sky-500/40 text-center">
+        <p class="text-[11px] font-mono text-slate-400 mb-3">👇 Drag this button to your Bookmarks Bar:</p>
+        <a 
+          id="draggable-bookmarklet" 
+          href="javascript:(function(){alert('Bookmarklet ready!');})();" 
+          class="bookmarklet-btn font-mono"
+          onclick="event.preventDefault(); alert('Please drag this button directly to your browser Bookmarks Bar (Ctrl+Shift+O)!');"
+        >
+          <i data-lucide="camera" class="w-4 h-4"></i>
+          <span>📸 OmniExtract Media</span>
+        </a>
+      </div>
+
+      <div class="space-y-2 text-xs font-mono text-slate-400">
+        <div class="flex items-start gap-2">
+          <span class="w-5 h-5 rounded-full bg-slate-800 text-sky-400 flex items-center justify-center text-[10px] font-bold shrink-0">1</span>
+          <span>Ensure Bookmarks bar is visible (<kbd class="px-1 rounded bg-slate-800 text-slate-200">Ctrl+Shift+B</kbd> or <kbd class="px-1 rounded bg-slate-800 text-slate-200">Cmd+Shift+B</kbd>).</span>
+        </div>
+        <div class="flex items-start gap-2">
+          <span class="w-5 h-5 rounded-full bg-slate-800 text-sky-400 flex items-center justify-center text-[10px] font-bold shrink-0">2</span>
+          <span>Drag the button into your bookmarks bar.</span>
+        </div>
+        <div class="flex items-start gap-2">
+          <span class="w-5 h-5 rounded-full bg-slate-800 text-sky-400 flex items-center justify-center text-[10px] font-bold shrink-0">3</span>
+          <span>Visit any webpage, click "📸 OmniExtract Media", and watch all photos & videos load instantly!</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="border-t border-[#1A283B] bg-[#070B12] py-6 text-center text-xs font-mono text-slate-500">
+    <div class="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+      <div>
+        <strong class="text-slate-400">OMNIEXTRACT</strong> — Open Source Web Media & Video Harvester.
+      </div>
+      <div class="flex items-center gap-4 text-[11px]">
+        <span>100% Client-Side Privacy</span>
+        <span>•</span>
+        <span>Zero Server Logging</span>
+        <span>•</span>
+        <a href="https://github.com/Shakyavinit/omniextract" target="_blank" class="text-sky-400 hover:underline">MIT License</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Modal Helpers Script -->
+  <script>
+    function openBookmarkletModal() {
+      document.getElementById('bookmarklet-modal').classList.remove('hidden');
+      if (window.lucide) window.lucide.createIcons();
+    }
+    function closeBookmarkletModal() {
+      document.getElementById('bookmarklet-modal').classList.add('hidden');
+    }
+  </script>
+
+  <!-- Application Logic -->
+  <script src="app.js"></script>
+</body>
+</html>

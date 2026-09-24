@@ -1,0 +1,35 @@
+{
+  "name": "omniextract",
+  "version": "2.0.0",
+  "description": "Universal Web Media & Video Harvester — Extract, preview, and batch-download high-resolution photos, 4K/1080p videos, audio, and SVG vectors from any website.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "media-extractor",
+    "video-downloader",
+    "image-scraper",
+    "web-scraper",
+    "photo-extractor",
+    "video-harvester",
+    "batch-downloader",
+    "jszip",
+    "media-downloader"
+  ],
+  "author": "Shakya Vinit",
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Shakyavinit/omniextract.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Shakyavinit/omniextract/issues"
+  },
+  "homepage": "https://shakyavinit.github.io/omniextract/"
+}

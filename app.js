@@ -145,7 +145,7 @@ async function startUrlScan(rawUrl) {
 
   state.currentUrl = targetUrl;
   state.isScanning = true;
-  setScanningUI(true, 'Connecting to fast proxy cascade...');
+  setScanningUI(true, 'Connecting to high-speed proxy cascade...');
 
   const startTime = performance.now();
 
@@ -161,7 +161,7 @@ async function startUrlScan(rawUrl) {
     saveRecentScan(targetUrl, state.pageTitle || targetUrl, state.items.length);
   } catch (err) {
     console.error('Scan error:', err);
-    showScanError(err.message || 'Failed to fetch webpage. Try Raw HTML Paste mode if the site is behind Cloudflare.');
+    showScanError(err.message || 'Failed to fetch webpage. The site may be protected or restricted.', targetUrl);
   } finally {
     state.isScanning = false;
     setScanningUI(false);
@@ -169,50 +169,124 @@ async function startUrlScan(rawUrl) {
 }
 
 /**
+ * Handle SPA (Single Page App) Client Redirects
+ * E.g., GitHub Pages 404 redirect script (spa-github-pages)
+ */
+async function handlePossibleSpaRedirect(html, sourceUrl) {
+  if (!html || typeof html !== 'string') return html;
+
+  // Check if GitHub Pages 404 redirect script or client redirect is detected
+  if (html.includes('spa-github-pages') || html.includes('pathSegmentsToKeep') || html.includes('l.replace')) {
+    try {
+      const parsed = new URL(sourceUrl);
+      const pathParts = parsed.pathname.split('/').filter(Boolean);
+      if (pathParts.length > 0) {
+        const rootUrl = `${parsed.origin}/${pathParts[0]}/`;
+        console.log(`Detected SPA redirect script! Fetching root SPA: ${rootUrl}`);
+        updateProxyIndicator(`Detected SPA route! Ingesting root application: ${rootUrl}...`, 'purple');
+        const rootHtml = await fetchHtmlDirectOrProxy(rootUrl);
+        return rootHtml;
+      }
+    } catch (e) {
+      console.warn('SPA redirect resolution failed:', e);
+    }
+  }
+
+  return html;
+}
+
+/**
  * Multi-Proxy Racing Engine
- * Races multiple proxies concurrently with auto-failover
+ * Races multiple proxies concurrently with auto-failover and direct fetch priority
  */
 async function fetchHtmlWithProxyRace(url) {
+  return await fetchHtmlDirectOrProxy(url);
+}
+
+async function fetchHtmlDirectOrProxy(url) {
+  const targetUrl = url;
+
+  // 1. Direct fetch attempt (if same domain or CORS allowed, e.g. GitHub Pages)
+  try {
+    updateProxyIndicator('Testing direct connection...', 'sky');
+    const ctrl = new AbortController();
+    const timeout = setTimeout(() => ctrl.abort(), 2000);
+    const directRes = await fetch(targetUrl, { mode: 'cors', signal: ctrl.signal });
+    clearTimeout(timeout);
+    if (directRes.ok) {
+      const text = await directRes.text();
+      if (text && text.length > 50) {
+        updateProxyIndicator('Direct connection succeeded (0ms latency)', 'emerald');
+        return await handlePossibleSpaRedirect(text, targetUrl);
+      }
+    }
+  } catch (directErr) {
+    // Normal for cross-origin sites without open CORS headers
+  }
+
+  // 2. High-speed multi-proxy cascade
   const proxies = [
+    {
+      name: 'Jina AI Reader (Rendered DOM)',
+      fetcher: async () => {
+        // Jina executes JavaScript, renders client-side SPAs, and bypasses Cloudflare
+        const res = await fetch(`https://r.jina.ai/${targetUrl}`, {
+          headers: { 'X-Return-Format': 'html' }
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const text = await res.text();
+        if (!text || text.length < 50) throw new Error('Empty response');
+        return text;
+      }
+    },
+    {
+      name: 'Cors.eu.org Proxy',
+      fetcher: async () => {
+        const res = await fetch(`https://cors.eu.org/${targetUrl}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const text = await res.text();
+        if (!text || text.length < 50) throw new Error('Empty response');
+        return text;
+      }
+    },
     {
       name: 'AllOrigins Raw',
       fetcher: async () => {
-        const res = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`, { cache: 'no-cache' });
+        const res = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`, { cache: 'no-cache' });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return await res.text();
-      }
-    },
-    {
-      name: 'CodeTabs Proxy',
-      fetcher: async () => {
-        const res = await fetch(`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return await res.text();
-      }
-    },
-    {
-      name: 'CorsProxy.io',
-      fetcher: async () => {
-        const res = await fetch(`https://corsproxy.io/?url=${encodeURIComponent(url)}`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return await res.text();
+        const text = await res.text();
+        if (!text || text.length < 50) throw new Error('Empty response');
+        return text;
       }
     },
     {
       name: 'AllOrigins JSON',
       fetcher: async () => {
-        const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
+        const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        if (!data.contents) throw new Error('No contents returned');
+        if (!data.contents || data.contents.length < 50) throw new Error('No contents');
         return data.contents;
+      }
+    },
+    {
+      name: 'Microlink API Scraper',
+      fetcher: async () => {
+        const res = await fetch(`https://api.microlink.io/?url=${encodeURIComponent(targetUrl)}&screenshot=true&meta=true&video=true`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+        if (json.status === 'success' && json.data) {
+          return microlinkToHtml(json.data, targetUrl);
+        }
+        throw new Error('Microlink failed');
       }
     }
   ];
 
-  // Race the first 2 fast proxies with timeout
-  const timeoutMs = 8500;
-  
+  updateProxyIndicator('Racing proxies: Jina Reader, Cors.eu.org, AllOrigins...', 'cyan');
+
+  // Race the top 3 proxies concurrently with timeout
+  const timeoutMs = 9000;
   const raceWithTimeout = (promise, ms) => {
     let timer;
     const timeout = new Promise((_, reject) => {
@@ -221,16 +295,13 @@ async function fetchHtmlWithProxyRace(url) {
     return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
   };
 
-  updateProxyIndicator('Racing proxies: AllOrigins, CodeTabs, CorsProxy.io...');
-
-  // Try fast parallel race first
   try {
     const fastResult = await Promise.any(
       proxies.slice(0, 3).map(p => raceWithTimeout(p.fetcher(), timeoutMs))
     );
     if (fastResult && fastResult.length > 50) {
       updateProxyIndicator('Proxy connected successfully', 'emerald');
-      return fastResult;
+      return await handlePossibleSpaRedirect(fastResult, targetUrl);
     }
   } catch (raceErr) {
     console.warn('Initial proxy race failed, trying sequential fallbacks...', raceErr);
@@ -239,30 +310,57 @@ async function fetchHtmlWithProxyRace(url) {
   // Sequential fallback loop
   for (const proxy of proxies) {
     try {
-      updateProxyIndicator(`Attempting fallback via ${proxy.name}...`, 'amber');
-      const result = await raceWithTimeout(proxy.fetcher(), 7000);
+      updateProxyIndicator(`Connecting via ${proxy.name}...`, 'amber');
+      const result = await raceWithTimeout(proxy.fetcher(), 7500);
       if (result && result.length > 50) {
         updateProxyIndicator(`Connected via ${proxy.name}`, 'emerald');
-        return result;
+        return await handlePossibleSpaRedirect(result, targetUrl);
       }
     } catch (e) {
       console.warn(`Proxy ${proxy.name} failed:`, e);
     }
   }
 
-  // Direct fetch attempt (if same domain or CORS allowed)
+  // If subpath failed (like /cameras or /live), auto-try the root base URL
   try {
-    updateProxyIndicator('Attempting direct fetch...', 'cyan');
-    const directRes = await fetch(url, { mode: 'cors' });
-    if (directRes.ok) {
-      updateProxyIndicator('Direct connection succeeded', 'emerald');
-      return await directRes.text();
+    const parsed = new URL(targetUrl);
+    const pathParts = parsed.pathname.split('/').filter(Boolean);
+    if (pathParts.length > 0) {
+      const rootUrl = `${parsed.origin}/${pathParts[0]}/`;
+      if (rootUrl !== targetUrl && rootUrl !== targetUrl + '/') {
+        console.log(`Subpath failed, trying root domain: ${rootUrl}`);
+        updateProxyIndicator(`Subpath failed! Auto-trying base website: ${rootUrl}...`, 'purple');
+        const fallbackRes = await fetchHtmlDirectOrProxy(rootUrl);
+        if (fallbackRes) return fallbackRes;
+      }
     }
-  } catch (directErr) {
-    // Ignore direct fetch failure
-  }
+  } catch (e) {}
 
-  throw new Error('All CORS proxies failed to load this URL. The website might be blocking scrapers. Please switch to the "RAW HTML PASTE" tab and paste the page source directly!');
+  throw new Error(`All proxies failed to load ${targetUrl}. The website may be offline, restricted, or firewalled.`);
+}
+
+/**
+ * Convert Microlink structured data into an HTML shell with rich media
+ */
+function microlinkToHtml(data, url) {
+  let html = `<!DOCTYPE html><html><head><title>${data.title || url}</title></head><body>`;
+  if (data.image && data.image.url) {
+    html += `<img src="${data.image.url}" alt="${data.title || 'Featured Image'}" />`;
+  }
+  if (data.logo && data.logo.url) {
+    html += `<img src="${data.logo.url}" alt="Website Logo" />`;
+  }
+  if (data.video && data.video.url) {
+    html += `<video src="${data.video.url}" controls></video>`;
+  }
+  if (data.audio && data.audio.url) {
+    html += `<audio src="${data.audio.url}" controls></audio>`;
+  }
+  if (data.screenshot && data.screenshot.url) {
+    html += `<img src="${data.screenshot.url}" alt="Full Page Snapshot" />`;
+  }
+  html += `</body></html>`;
+  return html;
 }
 
 /**
@@ -515,6 +613,19 @@ function parseMediaFromHTML(html, baseUrl) {
       }
     } catch (e) {
       // Ignore serialization errors
+    }
+  });
+
+  // 10. Deep Regex Media Scanner across the raw HTML/text
+  // Finds media defined in script tags, React state, JSON data arrays, and CSS variables!
+  const mediaRegex = /(?:https?:\/\/[^\s"'`<>]+|(?:\/|\.\/)[^\s"'`<>]+\/?[^\s"'`<>]+)\.(?:jpg|jpeg|png|webp|gif|svg|avif|mp4|webm|mov|m3u8|mp3|ogg|wav)(?:[?#][^\s"'`<>]*)?/gi;
+  const regexMatches = html.match(mediaRegex) || [];
+  regexMatches.forEach(match => {
+    let clean = match.replace(/['",;)]+$/, '');
+    if (!clean.includes('node_modules') && !clean.includes('favicon.ico')) {
+      const ext = getFileExtension(clean).toLowerCase();
+      const type = EXT_VIDEO.includes(ext) ? 'video' : (EXT_AUDIO.includes(ext) ? 'audio' : (EXT_VECTOR.includes(ext) ? 'svg' : 'image'));
+      addMedia(clean, type, 'script:bundle', 'Asset from Page Bundle');
     }
   });
 
@@ -1447,13 +1558,41 @@ function updateProxyIndicator(text, color = 'sky') {
   }
 }
 
-function showScanError(msg) {
+function showScanError(msg, targetUrl) {
   const box = document.getElementById('scan-error-box');
   const msgEl = document.getElementById('scan-error-msg');
   if (box && msgEl) {
-    msgEl.innerText = msg;
+    let cleanHost = '';
+    let baseDomainUrl = '';
+    try {
+      const u = new URL(targetUrl || state.currentUrl);
+      cleanHost = u.hostname;
+      const pathParts = u.pathname.split('/').filter(Boolean);
+      baseDomainUrl = pathParts.length > 0 ? `${u.origin}/${pathParts[0]}/` : u.origin;
+    } catch (e) {}
+
+    msgEl.innerHTML = `
+      <span>${msg}</span>
+      <div class="mt-3 flex flex-wrap items-center gap-2 font-mono text-xs">
+        ${baseDomainUrl && baseDomainUrl !== (targetUrl || state.currentUrl) ? `
+          <button type="button" onclick="scanPreset('${baseDomainUrl}')" class="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold transition flex items-center gap-1.5">
+            <i data-lucide="globe" class="w-3.5 h-3.5"></i>
+            <span>Scan Base App (${baseDomainUrl})</span>
+          </button>
+        ` : ''}
+        <button type="button" onclick="switchInputMode('raw-html')" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 transition flex items-center gap-1.5 font-bold">
+          <i data-lucide="code" class="w-3.5 h-3.5 text-sky-400"></i>
+          <span>Paste Page Source (Ctrl+U)</span>
+        </button>
+        <button type="button" onclick="openBookmarkletModal()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 transition flex items-center gap-1.5 font-bold">
+          <i data-lucide="bookmark" class="w-3.5 h-3.5 text-emerald-400"></i>
+          <span>Use 1-Click Bookmarklet</span>
+        </button>
+      </div>
+    `;
     box.classList.remove('hidden');
-    setTimeout(() => box.classList.add('hidden'), 9000);
+    if (window.lucide) window.lucide.createIcons();
+    setTimeout(() => box.classList.add('hidden'), 15000);
   } else {
     alert(msg);
   }

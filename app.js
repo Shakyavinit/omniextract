@@ -172,20 +172,30 @@ async function startUrlScan(rawUrl) {
  * Handle SPA (Single Page App) Client Redirects
  * E.g., GitHub Pages 404 redirect script (spa-github-pages)
  */
-async function handlePossibleSpaRedirect(html, sourceUrl) {
-  if (!html || typeof html !== 'string') return html;
+async function handlePossibleSpaRedirect(html, sourceUrl, depth = 0) {
+  if (!html || typeof html !== 'string' || depth >= 1) return html;
 
-  // Check if GitHub Pages 404 redirect script or client redirect is detected
-  if (html.includes('spa-github-pages') || html.includes('pathSegmentsToKeep') || html.includes('l.replace')) {
+  // Detect if this is an SPA redirect page (e.g. GitHub Pages 404 stub)
+  // Must have a redirect script AND be an empty body or small stub, not the full app
+  const hasRedirectScript = (html.includes('pathSegmentsToKeep') && html.includes('l.replace')) ||
+                            html.includes('spa-github-pages') ||
+                            html.includes('window.location.replace');
+  const isStubDoc = (/<body[^>]*>\s*<\/body>/i.test(html) || html.length < 1500) &&
+                    !html.includes('id="root"') &&
+                    !html.includes('id="app"');
+
+  if (hasRedirectScript && isStubDoc) {
     try {
       const parsed = new URL(sourceUrl);
       const pathParts = parsed.pathname.split('/').filter(Boolean);
       if (pathParts.length > 0) {
         const rootUrl = `${parsed.origin}/${pathParts[0]}/`;
-        console.log(`Detected SPA redirect script! Fetching root SPA: ${rootUrl}`);
-        updateProxyIndicator(`Detected SPA route! Ingesting root application: ${rootUrl}...`, 'purple');
-        const rootHtml = await fetchHtmlDirectOrProxy(rootUrl);
-        return rootHtml;
+        if (rootUrl !== sourceUrl && rootUrl !== sourceUrl + '/') {
+          console.log(`Detected SPA redirect stub! Ingesting root application: ${rootUrl}`);
+          updateProxyIndicator(`Detected SPA route! Ingesting root application: ${rootUrl}...`, 'purple');
+          const rootHtml = await fetchHtmlDirectOrProxy(rootUrl, depth + 1);
+          if (rootHtml && rootHtml.length > 50) return rootHtml;
+        }
       }
     } catch (e) {
       console.warn('SPA redirect resolution failed:', e);
@@ -200,24 +210,32 @@ async function handlePossibleSpaRedirect(html, sourceUrl) {
  * Races multiple proxies concurrently with auto-failover and direct fetch priority
  */
 async function fetchHtmlWithProxyRace(url) {
-  return await fetchHtmlDirectOrProxy(url);
+  return await fetchHtmlDirectOrProxy(url, 0);
 }
 
-async function fetchHtmlDirectOrProxy(url) {
+async function fetchHtmlDirectOrProxy(url, depth = 0) {
   const targetUrl = url;
 
-  // 1. Direct fetch attempt (if same domain or CORS allowed, e.g. GitHub Pages)
+  // 1. Direct fetch attempt (instant for CORS-enabled sites, CDNs, or GitHub Pages)
   try {
     updateProxyIndicator('Testing direct connection...', 'sky');
     const ctrl = new AbortController();
-    const timeout = setTimeout(() => ctrl.abort(), 2000);
+    const timeout = setTimeout(() => ctrl.abort(), 2200);
     const directRes = await fetch(targetUrl, { mode: 'cors', signal: ctrl.signal });
     clearTimeout(timeout);
     if (directRes.ok) {
       const text = await directRes.text();
       if (text && text.length > 50) {
         updateProxyIndicator('Direct connection succeeded (0ms latency)', 'emerald');
-        return await handlePossibleSpaRedirect(text, targetUrl);
+        return await handlePossibleSpaRedirect(text, targetUrl, depth);
+      }
+    } else if (directRes.status === 404 && depth === 0) {
+      // Direct fetch hit an SPA route (like /cameras) on GitHub Pages
+      const text = await directRes.text().catch(() => '');
+      if (text && (text.includes('pathSegmentsToKeep') || text.includes('spa-github-pages') || text.includes('l.replace'))) {
+        console.log('Direct fetch detected SPA 404 router script. Resolving SPA root...');
+        const resolved = await handlePossibleSpaRedirect(text, targetUrl, depth);
+        if (resolved && resolved.length > 50) return resolved;
       }
     }
   } catch (directErr) {
@@ -227,7 +245,27 @@ async function fetchHtmlDirectOrProxy(url) {
   // 2. High-speed multi-proxy cascade
   const proxies = [
     {
-      name: 'Jina AI Reader (Rendered DOM)',
+      name: 'AllOrigins JSON Proxy',
+      fetcher: async () => {
+        const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}&timestamp=${Date.now()}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (!data || !data.contents || data.contents.length < 30) throw new Error('No contents');
+        return data.contents;
+      }
+    },
+    {
+      name: 'AllOrigins Raw Gateway',
+      fetcher: async () => {
+        const res = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`, { cache: 'no-cache' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const text = await res.text();
+        if (!text || text.length < 30) throw new Error('Empty response');
+        return text;
+      }
+    },
+    {
+      name: 'Jina AI Headless Reader',
       fetcher: async () => {
         // Jina executes JavaScript, renders client-side SPAs, and bypasses Cloudflare
         const res = await fetch(`https://r.jina.ai/${targetUrl}`, {
@@ -235,38 +273,18 @@ async function fetchHtmlDirectOrProxy(url) {
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const text = await res.text();
-        if (!text || text.length < 50) throw new Error('Empty response');
+        if (!text || text.length < 30) throw new Error('Empty response');
         return text;
       }
     },
     {
-      name: 'Cors.eu.org Proxy',
+      name: 'CodeTabs CORS Proxy',
       fetcher: async () => {
-        const res = await fetch(`https://cors.eu.org/${targetUrl}`);
+        const res = await fetch(`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const text = await res.text();
-        if (!text || text.length < 50) throw new Error('Empty response');
+        if (!text || text.length < 30) throw new Error('Empty response');
         return text;
-      }
-    },
-    {
-      name: 'AllOrigins Raw',
-      fetcher: async () => {
-        const res = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`, { cache: 'no-cache' });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const text = await res.text();
-        if (!text || text.length < 50) throw new Error('Empty response');
-        return text;
-      }
-    },
-    {
-      name: 'AllOrigins JSON',
-      fetcher: async () => {
-        const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        if (!data.contents || data.contents.length < 50) throw new Error('No contents');
-        return data.contents;
       }
     },
     {
@@ -275,7 +293,7 @@ async function fetchHtmlDirectOrProxy(url) {
         const res = await fetch(`https://api.microlink.io/?url=${encodeURIComponent(targetUrl)}&screenshot=true&meta=true&video=true`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
-        if (json.status === 'success' && json.data) {
+        if (json && json.status === 'success' && json.data) {
           return microlinkToHtml(json.data, targetUrl);
         }
         throw new Error('Microlink failed');
@@ -283,7 +301,19 @@ async function fetchHtmlDirectOrProxy(url) {
     }
   ];
 
-  updateProxyIndicator('Racing proxies: Jina Reader, Cors.eu.org, AllOrigins...', 'cyan');
+  // If running locally, prepend local server proxy
+  if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+    proxies.unshift({
+      name: 'Local High-Speed Proxy Bridge',
+      fetcher: async () => {
+        const res = await fetch(`http://localhost:3000/proxy?url=${encodeURIComponent(targetUrl)}`);
+        if (!res.ok) throw new Error(`Local bridge HTTP ${res.status}`);
+        return await res.text();
+      }
+    });
+  }
+
+  updateProxyIndicator('Racing proxies: AllOrigins, Jina Reader, CodeTabs...', 'cyan');
 
   // Race the top 3 proxies concurrently with timeout
   const timeoutMs = 9000;
@@ -301,7 +331,7 @@ async function fetchHtmlDirectOrProxy(url) {
     );
     if (fastResult && fastResult.length > 50) {
       updateProxyIndicator('Proxy connected successfully', 'emerald');
-      return await handlePossibleSpaRedirect(fastResult, targetUrl);
+      return await handlePossibleSpaRedirect(fastResult, targetUrl, depth);
     }
   } catch (raceErr) {
     console.warn('Initial proxy race failed, trying sequential fallbacks...', raceErr);
@@ -314,27 +344,31 @@ async function fetchHtmlDirectOrProxy(url) {
       const result = await raceWithTimeout(proxy.fetcher(), 7500);
       if (result && result.length > 50) {
         updateProxyIndicator(`Connected via ${proxy.name}`, 'emerald');
-        return await handlePossibleSpaRedirect(result, targetUrl);
+        return await handlePossibleSpaRedirect(result, targetUrl, depth);
       }
     } catch (e) {
       console.warn(`Proxy ${proxy.name} failed:`, e);
     }
   }
 
-  // If subpath failed (like /cameras or /live), auto-try the root base URL
-  try {
-    const parsed = new URL(targetUrl);
-    const pathParts = parsed.pathname.split('/').filter(Boolean);
-    if (pathParts.length > 0) {
-      const rootUrl = `${parsed.origin}/${pathParts[0]}/`;
-      if (rootUrl !== targetUrl && rootUrl !== targetUrl + '/') {
-        console.log(`Subpath failed, trying root domain: ${rootUrl}`);
-        updateProxyIndicator(`Subpath failed! Auto-trying base website: ${rootUrl}...`, 'purple');
-        const fallbackRes = await fetchHtmlDirectOrProxy(rootUrl);
-        if (fallbackRes) return fallbackRes;
+  // If subpath failed (like /cameras or /live), auto-try the root base URL (depth === 0 only)
+  if (depth === 0) {
+    try {
+      const parsed = new URL(targetUrl);
+      const pathParts = parsed.pathname.split('/').filter(Boolean);
+      if (pathParts.length > 0) {
+        const rootUrl = `${parsed.origin}/${pathParts[0]}/`;
+        if (rootUrl !== targetUrl && rootUrl !== targetUrl + '/') {
+          console.log(`Subpath failed, trying root domain: ${rootUrl}`);
+          updateProxyIndicator(`Subpath failed! Auto-trying base website: ${rootUrl}...`, 'purple');
+          const fallbackRes = await fetchHtmlDirectOrProxy(rootUrl, depth + 1);
+          if (fallbackRes && fallbackRes.length > 50) return fallbackRes;
+        }
       }
+    } catch (e) {
+      console.warn('Root domain fallback failed:', e);
     }
-  } catch (e) {}
+  }
 
   throw new Error(`All proxies failed to load ${targetUrl}. The website may be offline, restricted, or firewalled.`);
 }
@@ -616,16 +650,18 @@ function parseMediaFromHTML(html, baseUrl) {
     }
   });
 
-  // 10. Deep Regex Media Scanner across the raw HTML/text
+  // 10. Deep Regex Media Scanner across the raw HTML/text & scripts
   // Finds media defined in script tags, React state, JSON data arrays, and CSS variables!
-  const mediaRegex = /(?:https?:\/\/[^\s"'`<>]+|(?:\/|\.\/)[^\s"'`<>]+\/?[^\s"'`<>]+)\.(?:jpg|jpeg|png|webp|gif|svg|avif|mp4|webm|mov|m3u8|mp3|ogg|wav)(?:[?#][^\s"'`<>]*)?/gi;
+  const mediaRegex = /(?:https?:\/\/[^\s"'`<>]+|(?:[\w\d_\-\.\/]+\/)?[\w\d_\-\.]+\.(?:jpe?g|png|webp|gif|svg|avif|mp4|webm|mov|mkv|m4v|m3u8|mp3|ogg|wav|flac|aac))(?:[?#][^\s"'`<>]*)?/gi;
   const regexMatches = html.match(mediaRegex) || [];
   regexMatches.forEach(match => {
-    let clean = match.replace(/['",;)]+$/, '');
-    if (!clean.includes('node_modules') && !clean.includes('favicon.ico')) {
+    let clean = match.replace(/['",;)]+$/, '').trim();
+    if (!clean.includes('node_modules') && !clean.includes('favicon.ico') && clean.length > 4) {
       const ext = getFileExtension(clean).toLowerCase();
-      const type = EXT_VIDEO.includes(ext) ? 'video' : (EXT_AUDIO.includes(ext) ? 'audio' : (EXT_VECTOR.includes(ext) ? 'svg' : 'image'));
-      addMedia(clean, type, 'script:bundle', 'Asset from Page Bundle');
+      if ([...EXT_IMAGE, ...EXT_VIDEO, ...EXT_AUDIO, ...EXT_VECTOR].includes(ext)) {
+        const type = EXT_VIDEO.includes(ext) ? 'video' : (EXT_AUDIO.includes(ext) ? 'audio' : (EXT_VECTOR.includes(ext) ? 'svg' : 'image'));
+        addMedia(clean, type, 'script:bundle', inferTitleFromUrl(clean));
+      }
     }
   });
 
